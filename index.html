@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jadwal Shalat & Arah Kiblat</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(to bottom right, #6b21a8, #4f46e5);
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+    padding: 20px;
+  }
+  .card {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    backdrop-filter: blur(10px);
+  }
+  #compass {
+    width: 200px;
+    height: 200px;
+    border: 3px solid white;
+    border-radius: 50%;
+    margin: 20px auto;
+    position: relative;
+  }
+  #needle {
+    width: 3px;
+    height: 100px;
+    background: yellow;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform-origin: bottom center;
+  }
+  .today {
+    background-color: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    padding: 4px;
+  }
+</style>
+</head>
+<body>
+  <h1 class="text-3xl font-bold mt-4 mb-2">🕌 Jadwal Shalat & Arah Kiblat</h1>
+  <p id="location" class="text-sm mb-2 text-gray-200">Mendeteksi lokasi...</p>
+  <p id="today" class="text-md mb-4 font-semibold text-yellow-300">Memuat tanggal...</p>
+
+  <div id="content-to-pdf" class="card">
+    <h2 class="text-xl font-semibold mb-3 text-center">🕒 Jadwal Shalat Hari Ini</h2>
+    <ul id="jadwal" class="space-y-1 text-sm text-gray-100 mb-4"></ul>
+
+    <hr class="border-white/20 my-3">
+    <h2 class="text-lg font-semibold mb-2 text-center">📅 Jadwal Satu Bulan</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left text-gray-200">
+        <thead>
+          <tr class="bg-white/20 text-center">
+            <th class="p-2">Tanggal</th>
+            <th>Subuh</th>
+            <th>Dzuhur</th>
+            <th>Ashar</th>
+            <th>Maghrib</th>
+            <th>Isya</th>
+          </tr>
+        </thead>
+        <tbody id="monthly"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button onclick="exportPDF()" class="mt-5 px-5 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-xl shadow-md transition">
+    📄 Export ke PDF
+  </button>
+
+  <div class="mt-8 text-center">
+    <h2 class="text-lg font-semibold mb-2">🧭 Arah Kiblat</h2>
+    <div id="compass"><div id="needle"></div></div>
+    <p id="arah" class="text-sm text-gray-200 mt-2">Menghitung arah kiblat...</p>
+  </div>
+
+<script>
+async function init() {
+  const todayEl = document.getElementById("today");
+  const now = new Date();
+  const hariIndo = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  const bulanIndo = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const hariIni = `${hariIndo[now.getDay()]}, ${now.getDate()} ${bulanIndo[now.getMonth()]} ${now.getFullYear()}`;
+  todayEl.innerText = hariIni;
+
+  if (!navigator.geolocation) {
+    document.getElementById("location").innerText = "Browser tidak mendukung GPS.";
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+
+    // Ambil nama lokasi
+    const locRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const locData = await locRes.json();
+    const lokasi = locData.address.city || locData.address.town || locData.address.village || "Tidak diketahui";
+    document.getElementById("location").innerText = `${lokasi} (${lat.toFixed(4)} LS, ${lon.toFixed(4)} BT)`;
+
+    // Ambil jadwal 1 bulan penuh
+    const res = await fetch(`https://api.aladhan.com/v1/calendar?latitude=${lat}&longitude=${lon}&method=20&month=${now.getMonth()+1}&year=${now.getFullYear()}`);
+    const data = await res.json();
+
+    // Tampilkan jadwal hari ini
+    const jadwal = data.data[now.getDate()-1].timings;
+    let list = "";
+    ["Fajr","Dhuhr","Asr","Maghrib","Isha"].forEach(n => {
+      list += `<li>${n}: <b>${jadwal[n]}</b></li>`;
+    });
+    document.getElementById("jadwal").innerHTML = list;
+
+    // Jadwal bulanan
+    let table = "";
+    data.data.forEach((d, i) => {
+      const date = new Date(d.date.readable);
+      const tgl = `${date.getDate()} ${bulanIndo[date.getMonth()]}`;
+      const isToday = i === now.getDate()-1 ? "today" : "";
+      table += `
+      <tr class="text-center ${isToday}">
+        <td class="p-2 font-semibold">${tgl}</td>
+        <td>${d.timings.Fajr}</td>
+        <td>${d.timings.Dhuhr}</td>
+        <td>${d.timings.Asr}</td>
+        <td>${d.timings.Maghrib}</td>
+        <td>${d.timings.Isha}</td>
+      </tr>`;
+    });
+    document.getElementById("monthly").innerHTML = table;
+
+    // Hitung arah kiblat
+    const kaabaLat = 21.4225 * Math.PI / 180;
+    const kaabaLon = 39.8262 * Math.PI / 180;
+    const userLat = lat * Math.PI / 180;
+    const userLon = lon * Math.PI / 180;
+    const deltaLon = kaabaLon - userLon;
+    const y = Math.sin(deltaLon);
+    const x = Math.cos(userLat) * Math.tan(kaabaLat) - Math.sin(userLat) * Math.cos(deltaLon);
+    const kiblat = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    document.getElementById("arah").innerText = `Arah kiblat: ${kiblat.toFixed(2)}° dari utara.`;
+
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener("deviceorientation", (event) => {
+        const heading = event.alpha ? 360 - event.alpha : 0;
+        const angle = kiblat - heading;
+        document.getElementById("needle").style.transform = `rotate(${angle}deg)`;
+      });
+    }
+  }, (err) => {
+    document.getElementById("location").innerText = "Gagal mendeteksi lokasi: " + err.message;
+  });
+}
+
+function exportPDF() {
+  const element = document.getElementById('content-to-pdf');
+  const opt = {
+    margin: 0.5,
+    filename: 'jadwal-shalat.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(element).save();
+}
+
+init();
+</script>
+</body>
+</html>
