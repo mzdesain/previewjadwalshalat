@@ -24,7 +24,7 @@
     border-radius: 16px;
     padding: 20px;
     width: 100%;
-    max-width: 600px;
+    max-width: 700px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     backdrop-filter: blur(10px);
   }
@@ -46,9 +46,26 @@
     transform-origin: bottom center;
   }
   .today {
-    background-color: rgba(255,255,255,0.2);
+    background-color: rgba(255,255,255,0.25);
     border-radius: 8px;
-    padding: 4px;
+    font-weight: bold;
+  }
+  /* Buat PDF tetap mempertahankan warna & layout */
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background: linear-gradient(to bottom right, #6b21a8, #4f46e5) !important;
+      color: white !important;
+    }
+    .card {
+      background: rgba(255,255,255,0.1) !important;
+      border: 1px solid rgba(255,255,255,0.3) !important;
+      box-shadow: none !important;
+    }
+    th, td {
+      color: white !important;
+    }
   }
 </style>
 </head>
@@ -64,7 +81,7 @@
     <hr class="border-white/20 my-3">
     <h2 class="text-lg font-semibold mb-2 text-center">📅 Jadwal Satu Bulan</h2>
     <div class="overflow-x-auto">
-      <table class="w-full text-sm text-left text-gray-200">
+      <table class="w-full text-sm text-left text-gray-200 border-collapse">
         <thead>
           <tr class="bg-white/20 text-center">
             <th class="p-2">Tanggal</th>
@@ -80,7 +97,7 @@
     </div>
   </div>
 
-  <button onclick="exportPDF()" class="mt-5 px-5 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-xl shadow-md transition">
+  <button onclick="exportPDF()" class="mt-5 px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-xl shadow-md transition">
     📄 Export ke PDF
   </button>
 
@@ -118,7 +135,7 @@ async function init() {
     const res = await fetch(`https://api.aladhan.com/v1/calendar?latitude=${lat}&longitude=${lon}&method=20&month=${now.getMonth()+1}&year=${now.getFullYear()}`);
     const data = await res.json();
 
-    // Tampilkan jadwal hari ini
+    // Jadwal hari ini
     const jadwal = data.data[now.getDate()-1].timings;
     let list = "";
     ["Fajr","Dhuhr","Asr","Maghrib","Isha"].forEach(n => {
@@ -167,13 +184,18 @@ async function init() {
   });
 }
 
+// Export PDF dengan style penuh
 function exportPDF() {
   const element = document.getElementById('content-to-pdf');
   const opt = {
-    margin: 0.5,
+    margin: [0.5, 0.5, 0.5, 0.5],
     filename: 'jadwal-shalat.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
+    image: { type: 'jpeg', quality: 1 },
+    html2canvas: {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: null
+    },
     jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
   };
   html2pdf().set(opt).from(element).save();
